@@ -1,52 +1,101 @@
 const socket = io();
 
+let username = "";
+let joined = false;
 
-// Get user's location and send it to the server
+const joinBtn = document.getElementById("joinBtn");
+const usernameInput = document.getElementById("username");
 
-if(navigator.geolocation){
-    navigator.geolocation.watchPosition((position) => {
-        console.log(position.coords);
-        const {longitude, latitude} = position.coords;
-        
-        socket.emit("sendLocation", {longitude, latitude})
-    }, (error) => {
-        console.error("Error getting location: ", error);
-    },
-    {
-        enableHighAccuracy: true,
-        timeout: 5000,
-        maximumAge: 0
+// Join event
+joinBtn.addEventListener("click", () => {
+    username = usernameInput.value.trim();
+
+    if (!username) {
+        alert("Please enter your name");
+        return;
     }
-    
-);
 
-}
+    console.log("JOIN CLICKED");
 
-// Get Map and set view to user's location
-const map = L.map("map").setView([0, 0], 10);
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    attribution: '&copy; OpenStreetMap contributors'
-}).addTo(map);
+    socket.emit("join", { username });
+    joined = true;
 
-const markers = {};
+    document.querySelector(".join-container").style.display = "none";
 
-socket.on("recievedLocation", (data) => {
-    const {id, longitude, latitude} = data;
-    map.setView([latitude, longitude], 10);
-    if(markers[id]){
-        markers[id].setLatLng([latitude, longitude]);
-    }
-    else{
-        markers[id] = L.marker([latitude, longitude]).addTo(map);
+    // ✅ MOVE LOCATION HERE
+    if (navigator.geolocation) {
+        navigator.geolocation.watchPosition((position) => {
+
+            const { latitude, longitude } = position.coords;
+
+            console.log("LOCATION:", latitude, longitude); // debug
+
+            socket.emit("sendLocation", { latitude, longitude });
+
+        }, (error) => {
+            console.error("Location error:", error);
+        }, {
+            enableHighAccuracy: true
+        });
     }
 });
 
-//user Disconnected event
+// Initialize Map
+const map = L.map("map").setView([20, 0], 2);
 
-socket.on("userDisconnected", (data) => {
-    const {id} = data;
-    if(markers[id]){   
-        map.removeLayer(markers[id]);
-        delete markers[id];
-    }
-}); 
+// English tile layer (Carto)
+L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+    attribution: "&copy; OpenStreetMap &copy; CARTO"
+}).addTo(map);
+
+const markers = {};
+const paths = {};
+let centered = false;
+
+
+// Receive all users data
+socket.on("users:update", (users) => {
+
+    // Remove disconnected users
+    Object.keys(markers).forEach((id) => {
+        if (!users[id]) {
+            map.removeLayer(markers[id]);
+            map.removeLayer(paths[id]);
+            delete markers[id];
+            delete paths[id];
+        }
+    });
+
+    // Update users
+    Object.keys(users).forEach((id) => {
+        const user = users[id];
+
+        if (!user.latitude) return;
+
+        const latlng = [user.latitude, user.longitude];
+
+        // Marker
+        if (markers[id]) {
+            markers[id].setLatLng(latlng);
+        } else {
+            markers[id] = L.marker(latlng)
+                .addTo(map)
+                .bindPopup(user.username)
+                .bindTooltip(user.username, { permanent: true });
+        }
+
+        // Path
+        if (paths[id]) {
+            paths[id].addLatLng(latlng);
+        } else {
+            paths[id] = L.polyline([latlng], { weight: 4 })
+                .addTo(map);
+        }
+
+        // Center map only once
+        if (!centered) {
+            map.setView(latlng, 13);
+            centered = true;
+        }
+    });
+});
