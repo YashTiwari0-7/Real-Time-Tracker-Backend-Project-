@@ -22,14 +22,10 @@ joinBtn.addEventListener("click", () => {
 
     document.querySelector(".join-container").style.display = "none";
 
-    // ✅ MOVE LOCATION HERE
+    //  MOVE LOCATION HERE
     if (navigator.geolocation) {
         navigator.geolocation.watchPosition((position) => {
-
             const { latitude, longitude } = position.coords;
-
-            console.log("LOCATION:", latitude, longitude); // debug
-
             socket.emit("sendLocation", { latitude, longitude });
 
         }, (error) => {
