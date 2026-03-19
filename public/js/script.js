@@ -28,13 +28,6 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     attribution: '&copy; OpenStreetMap contributors'
 }).addTo(map);
 
-/*
-// Light
-const light = L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png");
-
-// Dark
-const dark = L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"); */
-// User location marker
 const markers = {};
 
 socket.on("recievedLocation", (data) => {
@@ -47,3 +40,13 @@ socket.on("recievedLocation", (data) => {
         markers[id] = L.marker([latitude, longitude]).addTo(map);
     }
 });
+
+//user Disconnected event
+
+socket.on("userDisconnected", (data) => {
+    const {id} = data;
+    if(markers[id]){   
+        map.removeLayer(markers[id]);
+        delete markers[id];
+    }
+}); 
